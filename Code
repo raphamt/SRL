@@ -1,0 +1,589 @@
+#include <fix_fft.h>
+#include <FastLED.h>
+#define Mic_in 8
+#define DATA_PIN 5
+#define NUM_LEDS 100
+#define NUM_LEDSt 12
+#define filtro 0
+#define Fade 2
+#define SHIFT 5
+#define TimeOut 60000
+#define WAIT_SHIFT 120
+#define COLOR_ORDER BRG
+
+CRGB ledstmp[NUM_LEDS];
+CRGB leds[NUM_LEDS]; // objeto dos Leds
+
+double setTime = SHIFT;
+double timeout = TimeOut;
+unsigned long timer = 0;
+int arr_saida[20] = {0};
+int arr_saida2[5] = {0};
+int melhores_freq[20] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127};
+const int SAMPLE_TIME = 10;
+unsigned long millisCurrent;
+unsigned long millisLast = 0;
+unsigned long millisElapsed = 0;
+int sampleBufferValue = 0;
+
+const int buttonPin = 2;
+int configLed = 1;
+int buttonState = 0; 
+int buttonState_ultimo = 0;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(Mic_in, INPUT);
+  pinMode(DATA_PIN, OUTPUT);
+  pinMode(buttonPin, INPUT);   
+  analogReference(INTERNAL); // essencial se for usar o arduino Leonardo
+  FastLED.setBrightness(254);
+  FastLED.addLeds<WS2812B, DATA_PIN, RGB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip ); // inicia o Obejto dos leds
+  FastLED.clear(); // apaga todos os Leds
+}
+
+void loop() {
+  // Sei lá o que acontece aqui
+  int i = 0;
+  int j = 0;
+  int cont = 0;
+  int val;
+  char im[128], data[128];
+  unsigned int freqOut[20] = {0};
+  int min = 0, max = 1024;
+  for (i = 0 ; i < 128; i++)
+  {
+    for (j = 0; j < 10; j++)
+    {
+      millisCurrent = millis();
+      millisElapsed = millisCurrent - millisLast;
+
+      if (digitalRead(Mic_in) == LOW) {
+        sampleBufferValue++;
+      }
+
+      if (millisElapsed > SAMPLE_TIME) {
+        //Serial.println(sampleBufferValue);
+        sampleBufferValue = 0;
+        millisLast = millisCurrent;
+      }
+    }
+    val = sampleBufferValue;
+    data[i] = val / 4 - 128;
+    im[i] = 0;
+    if (val > max) val = max;
+    if (val < min) val = min;
+  }
+  fix_fft(data, im, 7, 0); //
+  buttonState = digitalRead(buttonPin);
+  if (buttonState == HIGH && buttonState_ultimo != HIGH) {   
+    if (configLed == 3)
+    {
+      configLed = 1;
+    }
+    else 
+    {
+      configLed = configLed + 1;
+    }
+  }
+  buttonState_ultimo = buttonState;
+  
+  for (i = 0 ; i < 20; i++)
+  {
+    int dat = sqrt(data[melhores_freq[i]] * data[melhores_freq[i]] + im[melhores_freq[i]] * im[melhores_freq[i]]);
+
+    if ( dat > filtro)
+    {
+      freqOut[i] = dat;
+    }
+  }
+
+  for (i = 0; i < 20 ; i++)
+  {
+    //Serial.print(freqOut[i]);
+    //Serial.print(" , ");
+    arr_saida[i] = freqOut[i];
+    arr_saida[0] = (freqOut[0] - 127) * -1;
+    arr_saida[18] = freqOut[18] - 1;
+    arr_saida[19] = freqOut[19] - 1;
+  }
+  if (configLed == 1)
+  {
+    for (i = 0; i < 20 ; i++)
+    {
+      if (i == 0 || i % 2 == 0)
+      {
+        if (arr_saida[i] > 1)
+        {
+          if (arr_saida[i] < 3 && arr_saida[i] > 1)
+          {
+            leds[(99 - (5 * i))] = CRGB::Blue;
+            leds[(98 - (5 * i))] = CRGB::Black;
+            leds[(97 - (5 * i))] = CRGB::Black;
+            leds[(96 - (5 * i))] = CRGB::Black;
+            leds[(95 - (5 * i))] = CRGB::Black;
+          }
+          if (arr_saida[i] < 5 && arr_saida[i] > 2)
+          {
+            leds[(99 - (5 * i))] = CRGB::Blue;
+            leds[(98 - (5 * i))] = CRGB::Red;
+            leds[(97 - (5 * i))] = CRGB::Black;
+            leds[(96 - (5 * i))] = CRGB::Black;
+            leds[(95 - (5 * i))] = CRGB::Black;
+          }
+          if (arr_saida[i] < 8 && arr_saida[i] > 4)
+          {
+            leds[(99 - (5 * i))] = CRGB::Blue;
+            leds[(98 - (5 * i))] = CRGB::Red;
+            leds[(97 - (5 * i))] = CRGB::FireBrick;
+            leds[(96 - (5 * i))] = CRGB::Black;
+            leds[(95 - (5 * i))] = CRGB::Black;
+          }
+          if (arr_saida[i] < 10 && arr_saida[i] > 7)
+          {
+            leds[(99 - (5 * i))] = CRGB::Blue;
+            leds[(98 - (5 * i))] = CRGB::Red;
+            leds[(97 - (5 * i))] = CRGB::FireBrick;
+            leds[(96 - (5 * i))] = CRGB::Yellow;
+            leds[(95 - (5 * i))] = CRGB::Black;
+          }
+          if (arr_saida[i] > 9)
+          {
+            leds[(99 - (5 * i))] = CRGB::Blue;
+            leds[(98 - (5 * i))] = CRGB::Red;
+            leds[(97 - (5 * i))] = CRGB::FireBrick;
+            leds[(96 - (5 * i))] = CRGB::Yellow;
+            leds[(95 - (5 * i))] = CRGB::Green;
+          }
+        }
+        else
+        {
+          leds[(95 - (5 * i))] = CRGB::Black;
+          leds[(96 - (5 * i))] = CRGB::Black;
+          leds[(97 - (5 * i))] = CRGB::Black;
+          leds[(98 - (5 * i))] = CRGB::Black;
+          leds[(99 - (5 * i))] = CRGB::Black;
+        }
+      }
+      else
+      {
+        if (arr_saida[i] > 1)
+        {
+          if (arr_saida[i] < 3 && arr_saida[i] > 1)
+          {
+            leds[(95 - (5 * i))] = CRGB::Blue;
+            leds[(96 - (5 * i))] = CRGB::Black;
+            leds[(97 - (5 * i))] = CRGB::Black;
+            leds[(98 - (5 * i))] = CRGB::Black;
+            leds[(99 - (5 * i))] = CRGB::Black;
+          }
+          if (arr_saida[i] < 5 && arr_saida[i] > 2)
+          {
+            leds[(95 - (5 * i))] = CRGB::Blue;
+            leds[(96 - (5 * i))] = CRGB::Red;
+            leds[(97 - (5 * i))] = CRGB::Black;
+            leds[(98 - (5 * i))] = CRGB::Black;
+            leds[(99 - (5 * i))] = CRGB::Black;
+          }
+          if (arr_saida[i] < 8 && arr_saida[i] > 4)
+          {
+            leds[(95 - (5 * i))] = CRGB::Blue;
+            leds[(96 - (5 * i))] = CRGB::Red;
+            leds[(97 - (5 * i))] = CRGB::FireBrick;
+            leds[(98 - (5 * i))] = CRGB::Black;
+            leds[(99 - (5 * i))] = CRGB::Black;
+          }
+          if (arr_saida[i] < 10 && arr_saida[i] > 7)
+          {
+            leds[(95 - (5 * i))] = CRGB::Blue;
+            leds[(96 - (5 * i))] = CRGB::Red;
+            leds[(97 - (5 * i))] = CRGB::FireBrick;
+            leds[(98 - (5 * i))] = CRGB::Yellow;
+            leds[(99 - (5 * i))] = CRGB::Black;
+          }
+          if (arr_saida[i] > 9)
+          {
+            leds[(95 - (5 * i))] = CRGB::Blue;
+            leds[(96 - (5 * i))] = CRGB::Red;
+            leds[(97 - (5 * i))] = CRGB::FireBrick;
+            leds[(98 - (5 * i))] = CRGB::Yellow;
+            leds[(99 - (5 * i))] = CRGB::Green;
+          }
+        }
+        else
+        {
+          leds[(99 - (5 * i))] = CRGB::Black;
+          leds[(98 - (5 * i))] = CRGB::Black;
+          leds[(97 - (5 * i))] = CRGB::Black;
+          leds[(96 - (5 * i))] = CRGB::Black;
+          leds[(95 - (5 * i))] = CRGB::Black;
+        }
+      }
+      FastLED.show();
+    }
+  }
+  if (configLed == 2)
+  {
+    for (i = 0; i < 20 ; i++)
+    {
+      if (arr_saida[i] > 1)
+      {
+        cont++;
+      }
+    }
+    if (cont > 0)
+    {
+      if (cont > 0 && cont < 5)
+      {
+        leds[0] = CRGB::White;
+        leds[1] = CRGB::White;
+        leds[2] = CRGB::White;
+        leds[3] = CRGB::White;
+        leds[4] = CRGB::White;
+      }
+      if (cont > 4 && cont < 10)
+      {
+        leds[0] = CRGB::Red;
+        leds[1] = CRGB::Red;
+        leds[2] = CRGB::Red;
+        leds[3] = CRGB::Red;
+        leds[4] = CRGB::Red;
+      }
+      if (cont > 9 && cont < 15)
+      {
+        leds[0] = CRGB::Blue;
+        leds[1] = CRGB::Blue;
+        leds[2] = CRGB::Blue;
+        leds[3] = CRGB::Blue;
+        leds[4] = CRGB::Blue;
+      }   
+      if (cont > 15 && cont < 21)
+      {
+        leds[0] = CRGB::Green;
+        leds[1] = CRGB::Green;
+        leds[2] = CRGB::Green;
+        leds[3] = CRGB::Green;
+        leds[4] = CRGB::Green;
+      }
+    }
+    else
+    {
+      leds[0] = CRGB::Black;
+      leds[1] = CRGB::Black;
+      leds[2] = CRGB::Black;
+      leds[3] = CRGB::Black;
+      leds[4] = CRGB::Black;
+    }
+    Serial.print(" . ");
+    FastLED.show();
+    for (i = 0; i < 19 ; i++)
+    {
+      leds[(99 - (5 * i))] = leds[(99 - (5 * i + 1))];
+      leds[(98 - (5 * i))] = leds[(98 - (5 * i + 1))];
+      leds[(97 - (5 * i))] = leds[(97 - (5 * i + 1))];
+      leds[(96 - (5 * i))] = leds[(96 - (5 * i + 1))];
+      leds[(95 - (5 * i))] = leds[(95 - (5 * i + 1))];
+    }
+  }
+  if (configLed == 3)
+  {
+    for (i = 0; i < 5 ; i++)
+    {
+      if (arr_saida[i] >= arr_saida[i + 1] && arr_saida[i] >= arr_saida[i + 2] && arr_saida[i] >=  arr_saida[i + 3])
+      {
+         arr_saida2[i] = arr_saida[i];
+      }
+      if (arr_saida[i + 1] > arr_saida[i] && arr_saida[i + 1] > arr_saida[i + 2] && arr_saida[i + 1] >  arr_saida[i + 3])
+      {
+        arr_saida2[i] = arr_saida[i + 1];
+      }
+      if (arr_saida[i + 2] >= arr_saida[i + 1] && arr_saida[i + 2] >= arr_saida[i] && arr_saida[i + 2] >  arr_saida[i + 3])
+      {
+        arr_saida2[i] = arr_saida[i + 2];
+      }
+      if (arr_saida[i + 3] >= arr_saida[i + 1] && arr_saida[i + 3] >= arr_saida[i + 2] && arr_saida[i + 3] >  arr_saida[i])
+      {
+        arr_saida2[i] = arr_saida[i + 3];
+      }
+    }
+  
+      for (i = 0; i < 5 ; i++)
+    {
+      Serial.println(arr_saida2[i]);
+      Serial.println(", ");
+    }
+    Serial.print(" . ");
+    for (i = 0; i < 5 ; i++)
+    {
+      if (arr_saida2[i] > 1)
+      {
+        if (arr_saida2[i] < 3 && arr_saida2[i] > 1)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::Black;
+          leds[(10 + (i))] = CRGB::Black;
+          leds[(19 - (i))] = CRGB::Black;
+          leds[(20 + (i))] = CRGB::Black;
+          leds[(29 - (i))] = CRGB::Black;
+          leds[(30 + (i))] = CRGB::Black;
+          leds[(39 - (i))] = CRGB::Black;
+          leds[(40 + (i))] = CRGB::Black;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::Black;
+          leds[(89 - (i))] = CRGB::Black;
+          leds[(80 + (i))] = CRGB::Black;
+          leds[(79 - (i))] = CRGB::Black;
+          leds[(70 + (i))] = CRGB::Black;
+          leds[(69 - (i))] = CRGB::Black;
+          leds[(60 + (i))] = CRGB::Black;
+          leds[(59 - (i))] = CRGB::Black;
+          leds[(50 + (i))] = CRGB::Black;
+        }
+        if (arr_saida2[i] < 4 && arr_saida2[i] > 2)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Black;
+          leds[(19 - (i))] = CRGB::Black;
+          leds[(20 + (i))] = CRGB::Black;
+          leds[(29 - (i))] = CRGB::Black;
+          leds[(30 + (i))] = CRGB::Black;
+          leds[(39 - (i))] = CRGB::Black;
+          leds[(40 + (i))] = CRGB::Black;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Black;
+          leds[(80 + (i))] = CRGB::Black;
+          leds[(79 - (i))] = CRGB::Black;
+          leds[(70 + (i))] = CRGB::Black;
+          leds[(69 - (i))] = CRGB::Black;
+          leds[(60 + (i))] = CRGB::Black;
+          leds[(59 - (i))] = CRGB::Black;
+          leds[(50 + (i))] = CRGB::Black;
+        }
+        if (arr_saida2[i] < 5 && arr_saida2[i] > 3)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Purple;
+          leds[(19 - (i))] = CRGB::Black;
+          leds[(20 + (i))] = CRGB::Black;
+          leds[(29 - (i))] = CRGB::Black;
+          leds[(30 + (i))] = CRGB::Black;
+          leds[(39 - (i))] = CRGB::Black;
+          leds[(40 + (i))] = CRGB::Black;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Purple;
+          leds[(80 + (i))] = CRGB::Black;
+          leds[(79 - (i))] = CRGB::Black;
+          leds[(70 + (i))] = CRGB::Black;
+          leds[(69 - (i))] = CRGB::Black;
+          leds[(60 + (i))] = CRGB::Black;
+          leds[(59 - (i))] = CRGB::Black;
+          leds[(50 + (i))] = CRGB::Black;
+        }
+        if (arr_saida2[i] < 6 && arr_saida2[i] > 4)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Purple;
+          leds[(19 - (i))] = CRGB::Blue;
+          leds[(20 + (i))] = CRGB::Black;
+          leds[(29 - (i))] = CRGB::Black;
+          leds[(30 + (i))] = CRGB::Black;
+          leds[(39 - (i))] = CRGB::Black;
+          leds[(40 + (i))] = CRGB::Black;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Purple;
+          leds[(80 + (i))] = CRGB::Blue;
+          leds[(79 - (i))] = CRGB::Black;
+          leds[(70 + (i))] = CRGB::Black;
+          leds[(69 - (i))] = CRGB::Black;
+          leds[(60 + (i))] = CRGB::Black;
+          leds[(59 - (i))] = CRGB::Black;
+          leds[(50 + (i))] = CRGB::Black;
+        }
+        if (arr_saida2[i] < 7 && arr_saida2[i] > 5)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Purple;
+          leds[(19 - (i))] = CRGB::Blue;
+          leds[(20 + (i))] = CRGB::Yellow;
+          leds[(29 - (i))] = CRGB::Black;
+          leds[(30 + (i))] = CRGB::Black;
+          leds[(39 - (i))] = CRGB::Black;
+          leds[(40 + (i))] = CRGB::Black;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Purple;
+          leds[(80 + (i))] = CRGB::Blue;
+          leds[(79 - (i))] = CRGB::Yellow;
+          leds[(70 + (i))] = CRGB::Black;
+          leds[(69 - (i))] = CRGB::Black;
+          leds[(60 + (i))] = CRGB::Black;
+          leds[(59 - (i))] = CRGB::Black;
+          leds[(50 + (i))] = CRGB::Black;
+        }
+        if (arr_saida2[i] < 8 && arr_saida2[i] > 6)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Purple;
+          leds[(19 - (i))] = CRGB::Blue;
+          leds[(20 + (i))] = CRGB::Yellow;
+          leds[(29 - (i))] = CRGB::Red;
+          leds[(30 + (i))] = CRGB::Black;
+          leds[(39 - (i))] = CRGB::Black;
+          leds[(40 + (i))] = CRGB::Black;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Purple;
+          leds[(80 + (i))] = CRGB::Blue;
+          leds[(79 - (i))] = CRGB::Yellow;
+          leds[(70 + (i))] = CRGB::Red;
+          leds[(69 - (i))] = CRGB::Black;
+          leds[(60 + (i))] = CRGB::Black;
+          leds[(59 - (i))] = CRGB::Black;
+          leds[(50 + (i))] = CRGB::Black;
+        }
+        if (arr_saida2[i] < 9 && arr_saida2[i] > 7)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Purple;
+          leds[(19 - (i))] = CRGB::Blue;
+          leds[(20 + (i))] = CRGB::Yellow;
+          leds[(29 - (i))] = CRGB::Red;
+          leds[(30 + (i))] = CRGB::YellowGreen ;
+          leds[(39 - (i))] = CRGB::Black;
+          leds[(40 + (i))] = CRGB::Black;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Purple;
+          leds[(80 + (i))] = CRGB::Blue;
+          leds[(79 - (i))] = CRGB::Yellow;
+          leds[(70 + (i))] = CRGB::Red;
+          leds[(69 - (i))] = CRGB::YellowGreen ;
+          leds[(60 + (i))] = CRGB::Black;
+          leds[(59 - (i))] = CRGB::Black;
+          leds[(50 + (i))] = CRGB::Black;
+        }
+        if (arr_saida2[i] < 10 && arr_saida2[i] > 8)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Purple;
+          leds[(19 - (i))] = CRGB::Blue;
+          leds[(20 + (i))] = CRGB::Yellow;
+          leds[(29 - (i))] = CRGB::Red;
+          leds[(30 + (i))] = CRGB::YellowGreen ;
+          leds[(39 - (i))] = CRGB::Goldenrod ;
+          leds[(40 + (i))] = CRGB::Black;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Purple;
+          leds[(80 + (i))] = CRGB::Blue;
+          leds[(79 - (i))] = CRGB::Yellow;
+          leds[(70 + (i))] = CRGB::Red;
+          leds[(69 - (i))] = CRGB::YellowGreen ;
+          leds[(60 + (i))] = CRGB::Goldenrod ;
+          leds[(59 - (i))] = CRGB::Black;
+          leds[(50 + (i))] = CRGB::Black;
+        }
+        if (arr_saida2[i] < 11 && arr_saida2[i] > 9)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Purple;
+          leds[(19 - (i))] = CRGB::Blue;
+          leds[(20 + (i))] = CRGB::Yellow;
+          leds[(29 - (i))] = CRGB::Red;
+          leds[(30 + (i))] = CRGB::YellowGreen ;
+          leds[(39 - (i))] = CRGB::Goldenrod ;
+          leds[(40 + (i))] = CRGB::Yellow;
+          leds[(49 - (i))] = CRGB::Black;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Purple;
+          leds[(80 + (i))] = CRGB::Blue;
+          leds[(79 - (i))] = CRGB::Yellow;
+          leds[(70 + (i))] = CRGB::Red;
+          leds[(69 - (i))] = CRGB::YellowGreen ;
+          leds[(60 + (i))] = CRGB::Goldenrod ;
+          leds[(59 - (i))] = CRGB::Yellow;
+          leds[(50 + (i))] = CRGB::Black;
+      }
+        if (arr_saida2[i] > 10)
+        {
+          leds[(0 + (i))] = CRGB::White;
+          leds[(9 - (i))] = CRGB::MediumSlateBlue;
+          leds[(10 + (i))] = CRGB::Purple;
+          leds[(19 - (i))] = CRGB::Blue;
+          leds[(20 + (i))] = CRGB::Yellow;
+          leds[(29 - (i))] = CRGB::Red;
+          leds[(30 + (i))] = CRGB::YellowGreen ;
+          leds[(39 - (i))] = CRGB::Goldenrod ;
+          leds[(40 + (i))] = CRGB::Yellow;
+          leds[(49 - (i))] = CRGB::Green;
+        
+          leds[(99 - (i))] = CRGB::White;
+          leds[(90 + (i))] = CRGB::MediumSlateBlue;
+          leds[(89 - (i))] = CRGB::Purple;
+          leds[(80 + (i))] = CRGB::Blue;
+          leds[(79 - (i))] = CRGB::Yellow;
+          leds[(70 + (i))] = CRGB::Red;
+          leds[(69 - (i))] = CRGB::YellowGreen ;
+          leds[(60 + (i))] = CRGB::Goldenrod ;
+          leds[(59 - (i))] = CRGB::Yellow;
+          leds[(50 + (i))] = CRGB::Green;
+        }
+      }
+      else
+      {
+        leds[(0 + (i))] = CRGB::Black;
+        leds[(9 - (i))] = CRGB::Black;
+        leds[(10 + (i))] = CRGB::Black;
+        leds[(19 - (i))] = CRGB::Black;
+        leds[(20 + (i))] = CRGB::Black;
+        leds[(29 - (i))] = CRGB::Black;
+        leds[(30 + (i))] = CRGB::Black;
+        leds[(39 - (i))] = CRGB::Black;
+        leds[(40 + (i))] = CRGB::Black;
+        leds[(49 - (i))] = CRGB::Black;
+        
+        leds[(99 - (i))] = CRGB::Black;
+        leds[(90 + (i))] = CRGB::Black;
+        leds[(89 - (i))] = CRGB::Black;
+        leds[(80 + (i))] = CRGB::Black;
+        leds[(79 - (i))] = CRGB::Black;
+        leds[(70 + (i))] = CRGB::Black;
+        leds[(69 - (i))] = CRGB::Black;
+        leds[(60 + (i))] = CRGB::Black;
+        leds[(59 - (i))] = CRGB::Black;
+        leds[(50 + (i))] = CRGB::Black;
+      }
+      
+      FastLED.show();
+    }
+  }
+}
